@@ -11,146 +11,79 @@ The ACTION can be one of the following:
     connect - check connectivity of remote host on specific port
         END_OF_USAGE
 
+    def raise_message(action, message, *args)
+      messages = {1 => "Please specify an action and optional arguments",
+                  2 => "Action can only to be ping or connect",
+                  3 => "Do you really want to perform network tests unfiltered? (y/n): "}
+
+      send(action, messages[message] % args)
+    end
+
     def post_option_parser(configuration)
       if ARGV.size < 2
-        raise "Please specify an action and optional arguments"
+        raise_message(:raise, 1)
       else
-        # We trust that validation will be handled correctly
-        # as per accompanying DDL file ...
         action = ARGV.shift
 
-        host_name   = ARGV.shift
+        host_name = ARGV.shift
         remote_port = ARGV.shift
 
-        unless action.match(/^(ping|connect)$/)
-          raise "Action can only to be ping or connect"
+        if action =~ /^ping$/
+          arguments = {:fqdn => host_name}
+        elsif action =~  /^connect$/
+          # Cast port to an integer since it will be coming in as a string from the cli
+          arguments = {:fqdn => host_name, :port => DDL.string_to_number(remote_port)}
+        else
+          raise_message(:raise, 2)
         end
 
-        case action
-          when /^ping$/
-            arguments = {:fqdn => host_name}
-          when /^connect$/
-            arguments = {:fqdn => host_name,
-                         :port => remote_port}
-        end
-
-        configuration[:action]    = action
+        configuration[:action] = action
         configuration[:arguments] = arguments
       end
     end
 
     def validate_configuration(configuration)
-      # We have to ask this question because you do NOT want
-      # your entire network of bazillion machines to simply
-      # go and hammer some poor remote host ...  You may get
-      # your network blocked or whatnot, and that would be
-      # quite an unpleasant thing to have place so better to
-      # be sorry and safe ...
       if MCollective::Util.empty_filter?(options[:filter])
-        print "Do you really want to perform network tests unfiltered? (y/n): "
+        raise_message(:print, 3)
 
         STDOUT.flush
 
         # Only match letter "y" or complete word "yes" ...
-        exit! unless STDIN.gets.strip.match(/^(?:y|yes)$/i)
+        exit(1) unless STDIN.gets.strip.match(/^(?:y|yes)$/i)
       end
-    end
-
-    def print_statistics(statistics, action_statistics, type)
-      puts "\n---- nettest summary ----"
-      puts "           Nodes: %d / %d" % [statistics[:responses] + statistics[:noresponsefrom].size, statistics[:responses]]
-
-      if action_statistics.size > 0
-        case type
-          when "ping"
-            times = action_statistics[:ping]
-
-            sum     = times.inject(0) { |v, i| v + i }
-            average = sum / times.size.to_f
-
-            puts "         Results: replies=%d, maximum=%.3f ms, minimum=%.3f ms, average=%.3f ms" % [times.size, times.max, times.min, average]
-
-          when "connect"
-            puts "         Results: connected=%d, connection refused=%d, timed out=%d" % [action_statistics[:connect][0], action_statistics[:connect][1], action_statistics[:connect][2]]
-        end
-      else
-        puts "         Results: No responses received"
-      end
-
-      puts "    Elapsed Time: %.2f s\n" % [ statistics[:blocktime] ]
-    end
-
-    def process_connect_result(result, node, action_statistics, verbose)
-      action_statistics[:connect] ||= [ 0, 0, 0 ]
-
-      # This is to be in line with the usual format of output ...
-      result = result.tr("A-Z", "a-z")
-
-      case result
-        when "connected"
-          action_statistics[:connect][0] += 1
-
-        when "refused"
-          action_statistics[:connect][1] += 1
-
-        when "timeout"
-          action_statistics[:connect][2] += 1
-      end
-
-      if verbose
-        puts "%-40s status=%s\n\t\t%s" % [node[:sender], result, node[:statusmsg]]
-      else
-        puts "%-40s status=%s" % [node[:sender], result]
-      end
-    end
-
-    def process_ping_result(result, node, action_statistics, verbose)
-      action_statistics[:ping] ||= []
-
-      result = Float(result) rescue 0.0
-
-      if verbose
-        puts "%-40s time=%.3f\n\t\t%s" % [node[:sender], result, node[:statusmsg]]
-      else
-        puts "%-40s time=%.3f" % [node[:sender], result]
-      end
-
-      action_statistics[:ping] << result
     end
 
     def main
-      action_statistics = {}
+      nettest = rpcclient('nettest')
+      nettest_result = nettest.send(configuration[:action], configuration[:arguments])
 
-      action = configuration[:action]
-      arguments = configuration[:arguments]
+      nettest_result.each do |result|
+        node = result[:data][:rtt] || result[:data][:connect]
 
-      rpc_nettest = rpcclient("nettest", {:options => options})
-
-      rpc_nettest.send(action, arguments).each do |node|
-        # We want new line here ...
-        puts if action_statistics.size.zero? and not rpc_nettest.progress
-
-        data = node[:data]
-
-        # If the status code is non-zero and data is empty then we
-        # assume that something out of an ordinary had place and
-        # therefore assume that there was some sort of error ...
-        unless node[:statuscode].zero? and data
-          result = "error"
+        if result[:statuscode] == 0
+          node = node.to_s
+          case configuration[:action]
+          when 'ping'
+            if nettest.verbose
+              puts "%-40s time = %s\t\t%s" % [result[:sender], node, result[:statusmsg]]
+            else
+              puts "%-40s time = %s" % [result[:sender], node]
+            end
+          when 'connect'
+            if nettest.verbose
+              puts "%-40s status = %s\t\t%s" % [result[:sender], node, result[:statusmsg]]
+            else
+              puts "%-40s status = %s" % [result[:sender], node]
+            end
+          end
         else
-          result = data[:rtt] || data[:connect]
-        end
-
-        case action
-          when "ping"
-            process_ping_result(result, node, action_statistics, rpc_nettest.verbose)
-
-          when "connect"
-            process_connect_result(result, node, action_statistics, rpc_nettest.verbose)
+          puts "%-40s %s \t\t%s" % [result[:sender], node, result[:statusmsg]]
         end
       end
 
-      print_statistics(rpc_nettest.stats, action_statistics, action)
+      puts
+      printrpcstats :summarize => true, :caption => "%s Nettest results" % configuration[:action]
+      halt(nettest.stats)
     end
   end
 end

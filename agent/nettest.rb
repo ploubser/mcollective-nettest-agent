@@ -1,54 +1,76 @@
-require 'rubygems'
-require 'net/ping'
-require 'socket'
-require 'timeout'
-
 module MCollective
   module Agent
     class Nettest<RPC::Agent
-      metadata    :name        => "nettest",
-                  :description => "Agent to do network tests from a mcollective host",
-                  :author      => "Dean Smith",
-                  :license     => "BSD",
-                  :version     => "2.2",
-                  :url         => "http://github.com/deasmi",
-                  :timeout     => 60
+      activate_when do
+        begin
+          require 'net/ping'
+          require 'mcollective/util/nettest_agent'
+
+          true
+        rescue LoadError => e
+          Log.warn('Cannot load Nettest_agent plugin. Nettest_agent plugin requires the net/ping gem and util/nettest_agent class to run.')
+
+          false
+        end
+      end
 
       action "ping" do
-        validate :fqdn, String
-
-        fqdn = request[:fqdn]
-
-        icmp = Net::Ping::ICMP.new(fqdn)
-
-        if icmp.ping? then
-          reply[:rtt] = (icmp.duration * 1000).to_s
+        if ipaddr = Util::NettestAgent.get_ip_from_hostname(request[:fqdn])
+          reply[:rtt] = Nettest.testping(ipaddr)
+          reply.fail!('Cannot reach host') unless reply[:rtt]
         else
-          reply[:rtt] = "Host did not respond"
+          reply.fail!('Cannot resolve hostname')
         end
       end
 
       action "connect" do
-        validate :fqdn, String
-        validate :port, String
+        if ipaddr = Util::NettestAgent.get_ip_from_hostname(request[:fqdn])
+          reply[:connect], reply[:connect_status], reply[:connect_time] = Nettest.testconnect(ipaddr, request[:port])
+        else
+          reply.fail!('Cannot resolve hostname')
+        end
+      end
 
-        fqdn = request[:fqdn]
-        port = Integer(request[:port])
+      # Does the actual work of the ping action
+      def self.testping(ipaddr)
+        icmp = Net::Ping::ICMP.new(ipaddr)
+
+        if icmp.ping?
+          return (icmp.duration * 1000)
+        else
+          return nil
+        end
+      end
+
+      # Does the actual work of the connect action
+      # #testconnet will try and make a connection to a
+      # given ip address, returning the time it took to
+      # establish the connection, the connection status
+      # and a boolean value stating if the connection could
+      # be made.
+      def self.testconnect(ipaddr, port)
+        connected = false
+        connect_string = nil
+        connect_time = nil
 
         begin
-          Timeout::timeout(2) do
-
+          Timeout.timeout(2) do
             begin
-              t = TCPSocket.new(fqdn, port)
+              time = Time.now
+              t = TCPSocket.new(ipaddr, port)
               t.close
-              reply[:connect] = "Connected"
+              connect_time = Time.now - time
+              connected = true
+              connect_string =  'Connected'
             rescue
-              reply[:connect] = "Connection Refused"
+              connect_string = 'Connection Refused'
             end
           end
         rescue Timeout::Error
-          reply[:connect] = "Connection timeout"
+          connect_string =  'Connection Timeout'
         end
+
+        return connected, connect_string, connect_time
       end
     end
   end

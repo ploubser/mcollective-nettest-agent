@@ -2,9 +2,11 @@ metadata    :name        => "nettest",
             :description => "Agent to do network tests from a mcollective host",
             :author      => "Dean Smith <dean@zelotus.com>",
             :license     => "BSD",
-            :version     => "2.2",
+            :version     => "3.0.0",
             :url         => "http://github.com/deasmi",
             :timeout     => 60
+
+requires :mcollective => "2.2.1"
 
 action "ping", :description => "Returns rrt of ping to host" do
     display :always
@@ -13,7 +15,7 @@ action "ping", :description => "Returns rrt of ping to host" do
           :prompt => "FQDN",
           :description => "The fully qualified domain name to ping",
           :type => :string,
-          :validation => '^.+$',
+          :validation => :nettest_fqdn,
           :optional => false,
           :maxlength => 80
 
@@ -21,6 +23,9 @@ action "ping", :description => "Returns rrt of ping to host" do
            :description => "The round trip time in ms",
            :display_as=>"RTT"
 
+    summarize do
+      aggregate nettest_mma(:rtt, :format => "Min: %.3fms  Max: %.3fms  Average: %.3fms")
+    end
 end
 
 action "connect", :description => "Check connectivity of remote server on port" do
@@ -29,7 +34,7 @@ action "connect", :description => "Check connectivity of remote server on port" 
     input :fqdn,
           :prompt => "FQDN",
           :description => "The fully qualified domain name to ping",
-          :validation => '^.+$',
+          :validation => :nettest_fqdn,
           :type => :string,
           :optional => false,
           :maxlength => 80
@@ -37,13 +42,23 @@ action "connect", :description => "Check connectivity of remote server on port" 
     input :port,
           :prompt => "Port",
           :description => "The port to connect on",
-          :validation => '^[0-9]+$',
-          :type => :string,
+          :type => :integer,
           :maxlength => 4,
           :optional => false
 
     output :connect,
-           :description => "Can we connect",
-           :display_as=>"connected"
+           :description => "Boolean value stating if connection was possible",
+           :display_as =>"Connected"
 
+    output :connect_status,
+           :description => "Connection status string",
+           :display_as => "Connection Status"
+
+    output :connect_time,
+           :description => "Time it took to connect to host",
+           :display_as => "Connection time"
+
+    summarize do
+      aggregate summary(:connect_status)
+    end
 end
