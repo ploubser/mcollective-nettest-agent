@@ -1,7 +1,7 @@
 metadata :name => "nettest",
          :description => "Checks if connecting to a host on a specified port is possible",
          :author => "Pieter Loubser <pieter.loubser@puppetlabs.com>",
-         :license => "ASL 2.0",
+         :license => "BSD",
          :version => "1.0.0",
          :url => "http://projects.puppetlabs.com/projects/mcollective-plugins/wiki",
          :timeout => 1

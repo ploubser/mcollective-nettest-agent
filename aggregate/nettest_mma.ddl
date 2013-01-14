@@ -1,7 +1,7 @@
 etadata :name => "nettest_mma",
         :description => "Max, min, average aggregate function.",
         :author => "P. Loubser <pieter.loubser@puppetlabs.com>",
-        :license => "ASL 2.0",
+        :license => "BSD",
         :version => "1.0.0",
         :url => "http://projects.puppetlabs.com/projects/mcollective-plugins/wiki",
         :timeout => 1

@@ -1,7 +1,7 @@
 metadata :name => "nettest_fqdn",
          :description => "Validates that a string is a fully qualified domain name",
          :author => "P. Loubser <pieter.loubser@puppetlabs.com>",
-         :license => "ASL 2.0",
+         :license => "BSD",
          :version => "1.0.0",
          :url => "http://marionette-collective.org/",
          :timeout => 1

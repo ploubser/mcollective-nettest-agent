@@ -1,7 +1,7 @@
 metadata :name => "nettest_server_address",
          :description => "Validates that a hostname and port combination is both a valid hostname and a valid port",
          :author => "P. Loubser <pieter.loubser@puppetlabs.com>",
-         :license => "ASL 2.0",
+         :license => "BSD",
          :version => "1.0.0",
          :url => "http://marionette-collective.org/",
          :timeout => 1
