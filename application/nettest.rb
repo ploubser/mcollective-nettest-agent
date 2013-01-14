@@ -3,7 +3,7 @@ module MCollective
     description "Network tests from a mcollective host"
 
     usage <<-END_OF_USAGE
-mco nettest [OPTIONS] [FILTERS] <ACTION> <HOST NAME> [PORT]
+mco nettest <ping|connect> <HOST NAME> [PORT]
 
 The ACTION can be one of the following:
 
