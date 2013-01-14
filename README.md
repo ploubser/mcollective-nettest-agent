@@ -40,8 +40,14 @@ $ mco rpc nettest connect fqdn="hostname" port="nn"
 The nettest agent supplies an fqdn validator which will validate if a string is a valid uri.
 
 ```
-validate :fqdn, :fqdn
+validate :fqdn, :nettest_fqdn
 ```
+
+The nettest agent supplies a server address validator which will validate that a given string includes both a valid hostname and port number separated by a colon.
+```
+validate :serveraddress, :nettest_server_address
+```
+
 ###Data Plugin
 
 The nettest agent also supplies a data plugin which uses the nettest agent to check if a connection to a fqdn at a specific port can be made. The data plugin will return 'true' or 'false' and can be used during discovery or any other place where the MCollective discovery language is used.
@@ -49,9 +55,10 @@ The nettest agent also supplies a data plugin which uses the nettest agent to ch
 ```
 mco rpc rpcutil -S "Nettest('myhost', '8080').connect=true"
 ```
+
 ###Mma Aggregate Plugin
 
-The nettest agent also ships with a mma aggregate plugin which will determine the minimum value, maximum value and average value of a set of inputs determinted in a DDL.
+The nettest agent supplies a mma aggregate plugin which will determine the minimum value, maximum value and average value of a set of inputs determinted in a DDL.
 ```
-aggregate mma(:rtt, :format => "Min: %.3fms  Max: %.3fms  Average: %.3fms")
+aggregate nettest_mma(:rtt, :format => "Min: %.3fms  Max: %.3fms  Average: %.3fms")
 ```
